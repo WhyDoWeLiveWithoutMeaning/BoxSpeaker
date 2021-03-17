@@ -1,13 +1,13 @@
 import asyncio
 import discord
 import datetime
+import random
 import PySimpleGUI as sg
 import requests
 import io
 from PIL import Image, ImageTk
 
-def get_img_data(f, maxsize=(800, 640), first=False):
-    """Generate image data using PIL"""
+def get_img_data(f, maxsize=(128, 128), first=False):
     img = Image.open(f)
     img.thumbnail(maxsize)
     if first:
@@ -46,14 +46,14 @@ def all_channels(client):
 async def all_users(client):
     guilds = client.guilds
 
-    total = []
+    total = {}
 
     for i in client.guilds:
         async for j in i.fetch_members():
             if j.id not in total:
-                total.append(j.id)
+                total[j.name] = {"Mention" : j.mention, "URL" : j.avatar_url}
 
-    return len(total)
+    return total
 
 def get_guilds(client):
     all_guilds = {}
@@ -61,9 +61,21 @@ def get_guilds(client):
         all_guilds[i.name] = i.id
     return all_guilds
 
+async def users_in_guild(client, server):
+    guild = client.get_guild(server)
+
+    users = []
+
+    async for user in guild.fetch_members():
+        users.append(user.name)
+
+    users.sort()
+    return users
 
 async def menu(client):
-    sg.theme('DarkAmber')
+    sg.theme(random.choice(sg.theme_list()))
+
+    print = sg.Print
 
     guilds = get_guilds(client)
 
@@ -71,7 +83,7 @@ async def menu(client):
 
     channels = all_channels(client)
 
-    userCount = await all_users(client)
+    users = await all_users(client)
 
     emojis = {}
     for i in client.emojis:
@@ -85,18 +97,31 @@ async def menu(client):
             sg.VerticalSeparator(),
             sg.Column([
                 [
-                    sg.Listbox(emojiNames, size= (20, 8), no_scrollbar=True, enable_events=True, key="-EMOJISELECTED-")
+                    sg.Listbox(emojiNames, size= (20, 5), no_scrollbar=True, enable_events=True, key="-EMOJISELECTED-")
                 ],
                 [
                     sg.Button("Add Emoji")
+                ],
+                [
+                    sg.Listbox([], size = (20, 5), no_scrollbar=True, enable_events=True, key="-USERSELECTED-")
+                ],
+                [
+                    sg.Button("Mention User")
                 ]
             ]
             ),
             sg.VerticalSeparator(),
-            sg.Image(size=(128, 128), key="-EMOJIIMAGE-")
+            sg.Column([
+                [
+                    sg.Image(size=(128, 128), key="-EMOJIIMAGE-")
+                ],
+                [
+                    sg.Image(size=(128, 128), key="-USERIMAGE-")
+                ]
+            ])
         ],
         [
-            sg.Button("Send Message"),
+            sg.Button("Send Message")
         ]
     ]
     discordEmbedTab = [
@@ -147,7 +172,45 @@ async def menu(client):
             )
         ],
         [
-            sg.Button("Send Embed"),
+            sg.Button("Send Embed")
+        ]
+    ]
+
+    discordTab = [
+        [
+            sg.Listbox(guildNames, no_scrollbar = True, enable_events=True, size=(40, 5), key="-GUILDCHOICE-"),
+            sg.VerticalSeparator(),
+            sg.Listbox([], no_scrollbar = True, size=(40, 5), enable_events=True, key="-CHANNELS-"),
+            sg.VerticalSeparator(),
+            sg.Column(
+            [
+                [
+                    sg.Text("Guild Count:"),
+                    sg.Text(len(guilds))
+                ],
+                [
+                    sg.Text("Channel Count:"),
+                    sg.Text(len(channels))
+                ],
+                [
+                    sg.Text("User Count:"),
+                    sg.Text(len(users))
+                ]
+            ]
+            )
+
+        ],
+        [
+            sg.Multiline(size=(40, 20), write_only=True, disabled=True, key="-CHANNELHISTORY-"),
+            sg.VerticalSeparator(),
+            sg.TabGroup(
+            [
+                [
+                    sg.Tab("Message", discordMessageTab),
+                    sg.Tab("Embed", discordEmbedTab)
+                ]
+            ]
+            )
         ]
     ]
 
@@ -156,45 +219,7 @@ async def menu(client):
             sg.TabGroup(
             [
                 [
-                    sg.Tab("Discord",
-                    [
-                        [
-                            sg.Listbox(guildNames, no_scrollbar = True, enable_events=True, size=(40, 5), key="-GUILDCHOICE-"),
-                            sg.VerticalSeparator(),
-                            sg.Listbox([], no_scrollbar = True, size=(40, 5), enable_events=True, key="-CHANNELS-"),
-                            sg.VerticalSeparator(),
-                            sg.Column(
-                            [
-                                [
-                                    sg.Text("Guild Count:"),
-                                    sg.Text(len(guilds))
-                                ],
-                                [
-                                    sg.Text("Channel Count:"),
-                                    sg.Text(len(channels))
-                                ],
-                                [
-                                    sg.Text("User Count:"),
-                                    sg.Text(userCount)
-                                ]
-                            ]
-                            )
-
-                        ],
-                        [
-                            sg.Multiline(size=(40, 20), write_only=True, key="-CHANNELHISTORY-"),
-                            sg.VerticalSeparator(),
-                            sg.TabGroup(
-                            [
-                                [
-                                    sg.Tab("Message", discordMessageTab),
-                                    sg.Tab("Embed", discordEmbedTab)
-                                ]
-                            ]
-                            )
-                        ]
-                    ]
-                    )
+                    sg.Tab("Discord", discordTab)
                 ]
             ]
             )
@@ -220,6 +245,20 @@ async def menu(client):
             message += str(emoji)
             myWindow["-MESSAGECONTENT-"].update(message)
 
+        if event == "Mention User":
+            if len(values["-USERSELECTED-"]) < 1:
+                continue
+            userMention = users[values["-USERSELECTED-"][0]]["Mention"]
+            message = values["-MESSAGECONTENT-"]
+            message += str(userMention)
+            myWindow["-MESSAGECONTENT-"].update(message)
+
+        if event == "-USERSELECTED-":
+            url = users[values["-USERSELECTED-"][0]]["URL"]
+            response = requests.get(url, stream=True)
+            image_data = get_img_data(response.raw, first=True)
+            myWindow["-USERIMAGE-"].update(data=image_data)
+
 
         if event == "-EMOJISELECTED-":
             url = emojis[values["-EMOJISELECTED-"][0]]["Url"]
@@ -228,7 +267,7 @@ async def menu(client):
             myWindow["-EMOJIIMAGE-"].update(data=image_data)
 
         if event == "Send Message":
-            if len(values["-GUILDCHOICE-"]) < 1 or len(values["-CHANNELS-"]) < 1:
+            if len(values["-GUILDCHOICE-"]) < 1 or len(values["-CHANNELS-"]) < 1 or values["-MESSAGECONTENT-"] == "":
                 continue
             channel = client.get_channel(channels[values["-CHANNELS-"][0]])
             await channel.send(values["-MESSAGECONTENT-"])
@@ -258,6 +297,7 @@ async def menu(client):
             if values["-GUILDCHOICE-"][0] in guilds:
                 channels = get_channels_guild(client, guilds[values["-GUILDCHOICE-"][0]])
                 myWindow["-CHANNELS-"].update(values=channels)
+                myWindow["-USERSELECTED-"].update(values=await users_in_guild(client, guilds[values["-GUILDCHOICE-"][0]]))
             else:
                 continue
 
