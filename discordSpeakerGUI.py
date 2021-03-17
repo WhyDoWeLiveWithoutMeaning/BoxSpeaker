@@ -259,7 +259,6 @@ async def menu(client):
             image_data = get_img_data(response.raw, first=True)
             myWindow["-USERIMAGE-"].update(data=image_data)
 
-
         if event == "-EMOJISELECTED-":
             url = emojis[values["-EMOJISELECTED-"][0]]["Url"]
             response = requests.get(url,stream=True)
@@ -308,5 +307,5 @@ async def menu(client):
                 channelStr += "{}: {}\n".format(message.author.name, message.clean_content)
             myWindow["-CHANNELHISTORY-"].update(channelStr)
 
-
+    await client.close()
     myWindow.close()
