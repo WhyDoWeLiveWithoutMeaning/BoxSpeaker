@@ -10,4 +10,5 @@ client = discord.Client(intents=intents)
 async def on_ready():
     await g.menu(client)
 
-client.run(Key)
+client.run(APIKey)
+
