@@ -93,7 +93,7 @@ async def menu(client):
 
     discordMessageTab = [
         [
-            sg.Multiline(size=(70, 15), scrollbar=False, key="-MESSAGECONTENT-"),
+            sg.Multiline(size=(70, 15), scrollbar=False, enable_events=True, key="-MESSAGECONTENT-"),
             sg.VerticalSeparator(),
             sg.Column([
                 [
@@ -121,7 +121,8 @@ async def menu(client):
             ])
         ],
         [
-            sg.Button("Send Message")
+            sg.Button("Send Message"),
+            sg.Text("{}/2000".format(0), size=(9, 1), key="-MESSAGELENGTH-")
         ]
     ]
     discordEmbedTab = [
@@ -253,17 +254,22 @@ async def menu(client):
             message += str(userMention)
             myWindow["-MESSAGECONTENT-"].update(message)
 
+        if event == "-MESSAGECONTENT-":
+            myWindow["-MESSAGELENGTH-"].update("{}/2000".format(len(values["-MESSAGECONTENT-"])))
+
         if event == "-USERSELECTED-":
             url = users[values["-USERSELECTED-"][0]]["URL"]
             response = requests.get(url, stream=True)
             image_data = get_img_data(response.raw, first=True)
             myWindow["-USERIMAGE-"].update(data=image_data)
+            myWindow["-MESSAGELENGTH-"].update("{}/2000".format(len(values["-MESSAGECONTENT-"])))
 
         if event == "-EMOJISELECTED-":
             url = emojis[values["-EMOJISELECTED-"][0]]["Url"]
             response = requests.get(url,stream=True)
             image_data = get_img_data(response.raw,first=True)
             myWindow["-EMOJIIMAGE-"].update(data=image_data)
+            myWindow["-MESSAGELENGTH-"].update("{}/2000".format(len(values["-MESSAGECONTENT-"])))
 
         if event == "Send Message":
             if len(values["-GUILDCHOICE-"]) < 1 or len(values["-CHANNELS-"]) < 1 or values["-MESSAGECONTENT-"] == "":
