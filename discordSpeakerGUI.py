@@ -32,7 +32,11 @@ def get_channels_guild(client, guild):
             if i.permissions_for(clientUser).send_messages:
                 text_channels[i.name] = i.id
 
-    return text_channels
+    sorted_text_channels = {}
+
+    for key in sorted(text_channels.keys()):
+        sorted_text_channels[key] = text_channels[key]
+    return sorted_text_channels
 
 def all_channels(client):
     guildchannels = [i.channels for i in client.guilds]
@@ -71,6 +75,17 @@ async def users_in_guild(client, server):
 
     users.sort()
     return users
+
+def keyPrompt(display=""):
+    sg.theme(random.choice(sg.theme_list()))
+    window = sg.Window(display, [[sg.Text("Enter API Key"),sg.InputText("", size=(60, 1), key="APIKEY")],[sg.Button("Submit")]])
+    while True:
+        event, values = window()
+        if event == None:
+            window.close()
+        if event == "Submit":
+            window.close()
+            return values["APIKEY"]
 
 async def menu(client):
     sg.theme(random.choice(sg.theme_list()))
@@ -122,7 +137,8 @@ async def menu(client):
         ],
         [
             sg.Button("Send Message"),
-            sg.Text("{}/2000".format(0), size=(9, 1), key="-MESSAGELENGTH-")
+            sg.Text("{}/2000".format(0), size=(9, 1), key="-MESSAGELENGTH-"),
+            sg.Checkbox("Delete after send", key="-MESSAGEDELETE-")
         ]
     ]
     discordEmbedTab = [
@@ -137,6 +153,10 @@ async def menu(client):
                     sg.VerticalSeparator(),
                     sg.Column(
                     [
+                        [
+                            sg.Text("Hex", size=(5, 1)),
+                            sg.InputText("", size=(7, 1), k="-EMBEDHEX-")
+                        ],
                         [
                             sg.Text("Red", size=(5, 1)),
                             sg.InputText("0", size=(3, 1), key="-EMBEDRED-")
@@ -179,6 +199,7 @@ async def menu(client):
 
     discordTab = [
         [
+
             sg.Listbox(guildNames, no_scrollbar = True, enable_events=True, size=(40, 5), key="-GUILDCHOICE-"),
             sg.VerticalSeparator(),
             sg.Listbox([], no_scrollbar = True, size=(40, 5), enable_events=True, key="-CHANNELS-"),
@@ -245,6 +266,7 @@ async def menu(client):
             message = values["-MESSAGECONTENT-"]
             message += str(emoji)
             myWindow["-MESSAGECONTENT-"].update(message)
+            myWindow["-MESSAGELENGTH-"].update("{}/2000".format(len(message)))
 
         if event == "Mention User":
             if len(values["-USERSELECTED-"]) < 1:
@@ -253,6 +275,7 @@ async def menu(client):
             message = values["-MESSAGECONTENT-"]
             message += str(userMention)
             myWindow["-MESSAGECONTENT-"].update(message)
+            myWindow["-MESSAGELENGTH-"].update("{}/2000".format(len(message)))
 
         if event == "-MESSAGECONTENT-":
             myWindow["-MESSAGELENGTH-"].update("{}/2000".format(len(values["-MESSAGECONTENT-"])))
@@ -262,20 +285,21 @@ async def menu(client):
             response = requests.get(url, stream=True)
             image_data = get_img_data(response.raw, first=True)
             myWindow["-USERIMAGE-"].update(data=image_data)
-            myWindow["-MESSAGELENGTH-"].update("{}/2000".format(len(values["-MESSAGECONTENT-"])))
 
         if event == "-EMOJISELECTED-":
             url = emojis[values["-EMOJISELECTED-"][0]]["Url"]
             response = requests.get(url,stream=True)
             image_data = get_img_data(response.raw,first=True)
             myWindow["-EMOJIIMAGE-"].update(data=image_data)
-            myWindow["-MESSAGELENGTH-"].update("{}/2000".format(len(values["-MESSAGECONTENT-"])))
 
         if event == "Send Message":
             if len(values["-GUILDCHOICE-"]) < 1 or len(values["-CHANNELS-"]) < 1 or values["-MESSAGECONTENT-"] == "":
                 continue
             channel = client.get_channel(channels[values["-CHANNELS-"][0]])
             await channel.send(values["-MESSAGECONTENT-"])
+            if values["-MESSAGEDELETE-"]:
+                myWindow["-MESSAGECONTENT-"].update("")
+                myWindow["-MESSAGELENGTH-"].update("{}/2000".format(0))
 
         if event == "Send Embed":
             if len(values["-GUILDCHOICE-"]) < 1 or len(values["-CHANNELS-"]) < 1:
@@ -290,7 +314,15 @@ async def menu(client):
                 embed.colour = discord.Colour.random()
             else:
                 try:
-                    embed.colour = discord.Colour.from_rgb(int(values["-EMBEDRED-"]), int(values["-EMBEDGREEN-"]), int(values["-EMBEDBLUE-"]))
+                    if len(values["-EMBEDHEX-"]) > 1:
+                        sixteenIntegerHex = int(values["-EMBEDHEX-"].replace("#", ""), 16)
+                        readableHex = int(hex(sixteenIntegerHex), 0)
+                        embed.colour = discord.Colour(readableHex)
+                    else:
+                        if int(values["-EMBEDRED-"]) >= 0 and int(values["-EMBEDRED-"]) <= 255 and int(values["-EMBEDGREEN-"]) >= 0 and int(values["-EMBEDGREEN-"]) <= 255 and int(values["-EMBEDBLUE-"]) >= 0 and int(values["-EMBEDBLUE-"]) <= 255:
+                            embed.colour = discord.Colour.from_rgb(int(values["-EMBEDRED-"]), int(values["-EMBEDGREEN-"]), int(values["-EMBEDBLUE-"]))
+                        else:
+                            embed.colour = discord.Colour.from_rgb(0, 0, 0)
                 except:
                     embed.colour = discord.Colour.from_rgb(0, 0, 0)
             if values["-EMBEDTIMESTAMP-"]:
